@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Lock It Before It Drops – BBD</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --card: #1c1c28;
+    --accent: #ff6b00;
+    --accent2: #ffae00;
+    --text: #f0f0f5;
+    --muted: #7070a0;
+    --success: #00e5a0;
+    --fail: #ff4466;
+    --border: rgba(255,107,0,0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  /* animated bg */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 20% 20%, rgba(255,107,0,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 80%, rgba(255,174,0,0.06) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; position: relative; z-index: 1; }
+
+  header { text-align: center; margin-bottom: 2.5rem; }
+  header .tag {
+    display: inline-block; background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: #000; font-size: .7rem; font-weight: 700; letter-spacing: .15em;
+    padding: .3rem .9rem; border-radius: 99px; margin-bottom: 1rem; text-transform: uppercase;
+  }
+  header h1 { font-family: 'Syne', sans-serif; font-size: clamp(1.8rem,5vw,3rem); font-weight: 800; line-height: 1.1; }
+  header h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  header p { color: var(--muted); margin-top: .7rem; font-size: .95rem; }
+
+  /* Locker */
+  .locker-bar {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 1.2rem 1.5rem; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  }
+  .locker-label { font-family: 'Syne', sans-serif; font-size: .9rem; font-weight: 700; color: var(--accent2); flex-shrink: 0; }
+  .slots { display: flex; gap: .6rem; }
+  .slot {
+    width: 48px; height: 48px; border-radius: 10px; border: 2px dashed var(--muted);
+    display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
+    transition: all .4s; background: var(--card);
+  }
+  .slot.filled { border-color: var(--accent); background: rgba(255,107,0,0.1); animation: pop .4s; }
+  @keyframes pop { 0%{transform:scale(0.6)} 70%{transform:scale(1.15)} 100%{transform:scale(1)} }
+
+  .score-pill {
+    margin-left: auto; background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #000; font-weight: 700; font-size: .85rem; padding: .4rem 1rem; border-radius: 99px;
+  }
+
+  /* Cards grid */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.2rem; }
+
+  .product-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+    padding: 1.5rem; cursor: pointer; transition: transform .25s, box-shadow .25s;
+    position: relative; overflow: hidden;
+    animation: fadeUp .5s both;
+  }
+  .product-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(255,107,0,0.15); }
+  .product-card.used { opacity: .4; pointer-events: none; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+  .blur-image {
+    width: 100%; aspect-ratio: 1; border-radius: 12px; background: var(--surface);
+    display: flex; align-items: center; justify-content: center; font-size: 3rem;
+    filter: blur(10px); margin-bottom: 1rem; transition: filter .5s; user-select: none;
+    border: 1px solid var(--border);
+  }
+  .product-card:hover .blur-image { filter: blur(7px); }
+  .blur-image.revealed { filter: blur(0); }
+
+  .hint-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .hint { background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+          font-size: .72rem; padding: .25rem .65rem; border-radius: 99px; }
+
+  .categories { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .cat-btn {
+    background: var(--surface); border: 1.5px solid var(--border); color: var(--text);
+    padding: .5rem; border-radius: 10px; font-size: .78rem; cursor: pointer;
+    transition: background .2s, border-color .2s; text-align: center;
+  }
+  .cat-btn:hover { background: rgba(255,107,0,0.1); border-color: var(--accent); }
+
+  /* Feedback overlay */
+  .feedback {
+    position: absolute; inset: 0; border-radius: 18px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-family: 'Syne', sans-serif;
+    font-size: 1.2rem; font-weight: 800; opacity: 0; pointer-events: none;
+    transition: opacity .3s; gap: .4rem;
+  }
+  .feedback.show { opacity: 1; }
+  .feedback.correct { background: rgba(0,229,160,0.92); color: #000; }
+  .feedback.wrong { background: rgba(255,68,102,0.92); color: #fff; }
+
+  /* CTA */
+  .cta-section { margin-top: 2.5rem; text-align: center; }
+  .cta-btn {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: #000; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1rem;
+    padding: .9rem 2.5rem; border-radius: 99px; border: none; cursor: pointer;
+    transition: transform .2s, box-shadow .2s; margin: .4rem;
+    box-shadow: 0 4px 24px rgba(255,107,0,0.3);
+  }
+  .cta-btn:hover { transform: scale(1.04); box-shadow: 0 6px 32px rgba(255,107,0,0.45); }
+  .cta-btn.outline {
+    background: transparent; color: var(--accent); border: 2px solid var(--accent);
+    box-shadow: none;
+  }
+
+  .steps-section { margin-top: 3rem; }
+  .steps-title { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 800; margin-bottom: 1rem; color: var(--accent2); }
+  .steps-list { display: flex; flex-direction: column; gap: .7rem; }
+  .step-item {
+    display: flex; gap: 1rem; align-items: flex-start;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .9rem 1.2rem;
+  }
+  .step-num {
+    background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #000;
+    font-weight: 800; font-size: .8rem; width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .step-text { font-size: .88rem; color: var(--muted); line-height: 1.5; }
+
+  .toast {
+    position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--surface); border: 1px solid var(--accent); color: var(--text);
+    padding: .8rem 1.5rem; border-radius: 99px; font-size: .88rem; transition: transform .4s;
+    z-index: 100;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="tag">🔐 BBD Wishlist Game</div>
+    <h1>Lock It <span>Before It Drops</span></h1>
+    <p>Guess the category of blurred products and claim your BBD locker slots.</p>
+  </header>
+
+  <!-- Locker Bar -->
+  <div class="locker-bar">
+    <span class="locker-label">🔒 Big Billion Locker</span>
+    <div class="slots" id="slots">
+      <div class="slot" id="s0">🔒</div>
+      <div class="slot" id="s1">🔒</div>
+      <div class="slot" id="s2">🔒</div>
+    </div>
+    <div class="score-pill" id="scorePill">0 / 3 Slots</div>
+  </div>
+
+  <!-- Cards -->
+  <div class="cards-grid" id="cardsGrid"></div>
+
+  <div class="cta-section">
+    <button class="cta-btn" onclick="resetGame()">🔄 New Round</button>
+    <button class="cta-btn outline" onclick="showToast('Invite link copied! 📋')">📨 Invite Friend</button>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps-section">
+    <div class="steps-title">How It Works</div>
+    <div class="steps-list" id="stepsList"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">✅ Done!</div>
+
+<script>
+const products = [
+  { emoji: '📱', category: 'Mobile',    hints: ['🔊 BEEP', 'Small screen', 'Tap me'],   correct: 'Mobile' },
+  { emoji: '👗', category: 'Fashion',   hints: ['🎨 COLOR', 'Wear it', 'Style pick'],   correct: 'Fashion' },
+  { emoji: '🖥️', category: 'Appliance', hints: ['⚡ POWER', 'Big item', 'For home'],    correct: 'Appliance' },
+  { emoji: '💄', category: 'Beauty',    hints: ['✨ GLOW', 'Personal', 'Self care'],     correct: 'Beauty' },
+  { emoji: '🛋️', category: 'Home',      hints: ['🏠 SPACE', 'Sit on it', 'Room vibe'],  correct: 'Home' },
+  { emoji: '🥫', category: 'Grocery',   hints: ['🍽️ EAT', 'Daily need', 'Stock up'],    correct: 'Grocery' },
+];
+const allCats = ['Mobile','Fashion','Appliance','Beauty','Home','Grocery'];
+const steps = [
+  'Entry Hook – Vault with headline: "Some BBD products are already hidden. Can you unlock them?"',
+  'Blurred Product Cards – 6 blurred cards with clues: sound, emoji, silhouette, 1-word hint.',
+  'Guess the Category – Tap: Mobile / Fashion / Appliance / Beauty / Home / Grocery.',
+  'Correct Guess Reward – Card flies into the Big Billion Locker. Wrong = card cracks.',
+  'Locker Slots – 3 free slots. Unlock more by replaying, inviting friends, or returning tomorrow.',
+  'Retry Hook – New blurred cards appear daily with harder clues.',
+  'BBD Day Reveal – Locker opens on sale day with your saved products and surprises.',
+];
+
+let filled = 0;
+let shuffled = [];
+
+function shuffle(arr){ return [...arr].sort(()=>Math.random()-.5); }
+
+function buildCards(){
+  shuffled = shuffle(products);
+  const grid = document.getElementById('cardsGrid');
+  grid.innerHTML = '';
+  shuffled.forEach((p, i) => {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.style.animationDelay = `${i*0.08}s`;
+    card.id = `card-${i}`;
+
+    const cats = shuffle(allCats).slice(0,5);
+    if(!cats.includes(p.correct)) cats[0] = p.correct;
+    const finalCats = shuffle(cats).slice(0,4);
+    if(!finalCats.includes(p.correct)) finalCats[0] = p.correct;
+
+    card.innerHTML = `
+      <div class="blur-image" id="bi-${i}">${p.emoji}</div>
+      <div class="hint-row">${p.hints.map(h=>`<span class="hint">${h}</span>`).join('')}</div>
+      <div class="categories">
+        ${shuffle(finalCats).map(c=>`<button class="cat-btn" onclick="guess(${i},'${c}','${p.correct}')">${c}</button>`).join('')}
+      </div>
+      <div class="feedback" id="fb-${i}"></div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function guess(i, chosen, correct){
+  const card = document.getElementById(`card-${i}`);
+  const fb = document.getElementById(`fb-${i}`);
+  const bi = document.getElementById(`bi-${i}`);
+  const isCorrect = chosen === correct;
+
+  bi.classList.add('revealed');
+  fb.className = `feedback show ${isCorrect ? 'correct' : 'wrong'}`;
+  fb.innerHTML = isCorrect
+    ? `<span>🎉</span><span>Locked In!</span><small>${correct}</small>`
+    : `<span>💥</span><span>Missed It!</span><small>It was ${correct}</small>`;
+
+  card.classList.add('used');
+
+  if(isCorrect && filled < 3){
+    setTimeout(()=>{
+      const slot = document.getElementById(`s${filled}`);
+      slot.textContent = shuffled[i].emoji;
+      slot.classList.add('filled');
+      filled++;
+      document.getElementById('scorePill').textContent = `${filled} / 3 Slots`;
+      if(filled === 3) showToast('🔓 Locker Full! See you on BBD Day!');
+    }, 700);
+  }
+}
+
+function resetGame(){
+  filled = 0;
+  for(let k=0;k<3;k++){
+    const s = document.getElementById(`s${k}`);
+    s.textContent = '🔒'; s.classList.remove('filled');
+  }
+  document.getElementById('scorePill').textContent = '0 / 3 Slots';
+  buildCards();
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// Steps
+const sl = document.getElementById('stepsList');
+steps.forEach((s,i)=>{
+  sl.innerHTML += `<div class="step-item"><div class="step-num">${i+1}</div><div class="step-text">${s}</div></div>`;
+});
+
+buildCards();
+</script>
+</body>
+</html>
