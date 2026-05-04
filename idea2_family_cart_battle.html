@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Whose Cart Wins? – BBD Family Battle</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Manrope:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #fff8f0;
+    --surface: #ffffff;
+    --accent1: #ff4e00;
+    --accent2: #ff9500;
+    --accent3: #2563eb;
+    --accent4: #8b5cf6;
+    --text: #1a1a2e;
+    --muted: #888;
+    --border: #f0e0d0;
+    --shadow: 0 4px 24px rgba(255,78,0,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Manrope', sans-serif; min-height: 100vh; }
+
+  /* Confetti canvas */
+  canvas#confetti { position: fixed; inset: 0; pointer-events: none; z-index: 999; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 2rem 1rem; }
+
+  header { text-align: center; margin-bottom: 2rem; }
+  .tag {
+    display: inline-block; background: linear-gradient(90deg, var(--accent1), var(--accent2));
+    color: #fff; font-size: .7rem; font-weight: 800; letter-spacing: .12em;
+    padding: .3rem 1rem; border-radius: 99px; margin-bottom: .9rem; text-transform: uppercase;
+  }
+  h1 { font-family: 'Nunito', sans-serif; font-size: clamp(1.8rem,5vw,2.8rem); font-weight: 900; line-height: 1.1; }
+  h1 em { font-style: normal; color: var(--accent1); }
+  header p { color: var(--muted); margin-top: .6rem; font-size: .92rem; }
+
+  /* Steps */
+  .phase { background: var(--surface); border-radius: 20px; border: 1.5px solid var(--border); padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: var(--shadow); }
+  .phase-title { font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 800; color: var(--accent1); margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+  .phase-title span { background: var(--accent1); color: #fff; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; }
+
+  /* Role selector */
+  .role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
+  @media(max-width:500px){ .role-grid { grid-template-columns: 1fr 1fr; } }
+
+  .role-card {
+    border: 2px solid var(--border); border-radius: 14px; padding: .9rem .5rem; text-align: center;
+    cursor: pointer; transition: all .2s; background: var(--surface);
+    display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  }
+  .role-card:hover { border-color: var(--accent2); transform: translateY(-2px); }
+  .role-card.selected { border-color: var(--accent1); background: #fff5f0; box-shadow: 0 0 0 3px rgba(255,78,0,0.12); }
+  .role-emoji { font-size: 2rem; }
+  .role-name { font-weight: 700; font-size: .82rem; }
+
+  /* Style selector */
+  .style-grid { display: flex; flex-wrap: wrap; gap: .6rem; }
+  .style-btn {
+    border: 1.5px solid var(--border); border-radius: 99px; padding: .45rem 1.1rem;
+    font-size: .82rem; font-weight: 600; cursor: pointer; background: var(--surface);
+    transition: all .2s; color: var(--text);
+  }
+  .style-btn:hover { border-color: var(--accent2); }
+  .style-btn.selected { background: var(--accent1); color: #fff; border-color: var(--accent1); }
+
+  /* Battle section */
+  .battle-section { display: none; }
+  .battle-section.active { display: block; }
+
+  .battle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+  @media(max-width:500px){ .battle-grid { grid-template-columns: 1fr; } }
+
+  .cart-card {
+    background: var(--surface); border: 2px solid var(--border); border-radius: 18px; padding: 1.3rem;
+    text-align: center; cursor: pointer; transition: all .25s; box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+  }
+  .cart-card:hover { transform: scale(1.03); border-color: var(--accent2); }
+  .cart-card.winning { border-color: var(--accent1); box-shadow: 0 0 0 4px rgba(255,78,0,0.15); }
+  .cart-emoji { font-size: 2.8rem; margin-bottom: .5rem; }
+  .cart-name { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 1.05rem; }
+  .cart-style { font-size: .78rem; color: var(--muted); margin-top: .2rem; }
+  .cart-items { margin-top: .7rem; display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center; }
+  .item-tag { background: #f5f5f5; border-radius: 99px; font-size: .7rem; padding: .2rem .6rem; color: #555; }
+
+  .vs-badge {
+    text-align: center; font-family: 'Nunito', sans-serif; font-size: 2rem; font-weight: 900;
+    color: var(--accent1); margin-bottom: .5rem;
+  }
+
+  .vote-bar { background: #f0e8e0; border-radius: 99px; height: 14px; overflow: hidden; margin: .5rem 0; }
+  .vote-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg,var(--accent1),var(--accent2)); transition: width 1s; }
+  .vote-label { font-size: .78rem; color: var(--muted); display: flex; justify-content: space-between; }
+
+  .result-box {
+    background: linear-gradient(135deg, #fff5f0, #fff0e8); border: 2px solid var(--accent1);
+    border-radius: 18px; padding: 1.5rem; text-align: center; margin-bottom: 1.5rem;
+    animation: popIn .5s;
+  }
+  @keyframes popIn { from{transform:scale(0.8);opacity:0} to{transform:scale(1);opacity:1} }
+  .result-box h2 { font-family: 'Nunito', sans-serif; font-size: 1.5rem; font-weight: 900; color: var(--accent1); }
+  .result-box p { color: var(--muted); margin-top: .4rem; font-size: .9rem; }
+
+  .btn {
+    background: linear-gradient(90deg, var(--accent1), var(--accent2));
+    color: #fff; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: .95rem;
+    padding: .85rem 2rem; border-radius: 99px; border: none; cursor: pointer;
+    transition: transform .2s; box-shadow: 0 4px 18px rgba(255,78,0,0.25); margin: .3rem;
+  }
+  .btn:hover { transform: scale(1.04); }
+  .btn.secondary {
+    background: var(--surface); color: var(--accent1); border: 2px solid var(--accent1); box-shadow: none;
+  }
+
+  .steps-section { margin-top: 2.5rem; }
+  .steps-title { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 1.05rem; color: var(--accent1); margin-bottom: .8rem; }
+  .step-item { display: flex; gap: .8rem; padding: .75rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: .5rem; }
+  .sn { background: var(--accent1); color: #fff; font-weight: 800; font-size: .75rem; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .st { font-size: .85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div class="container">
+
+  <header>
+    <div class="tag">🛒 BBD Family Battle</div>
+    <h1>Whose Cart <em>Wins?</em></h1>
+    <p>Pick family roles, auto-generate carts, and vote for the best!</p>
+  </header>
+
+  <!-- Phase 1: Choose Roles -->
+  <div class="phase" id="phase1">
+    <div class="phase-title"><span>1</span> Choose Family Roles</div>
+    <div class="role-grid" id="roleGrid"></div>
+  </div>
+
+  <!-- Phase 2: Style -->
+  <div class="phase" id="phase2" style="display:none">
+    <div class="phase-title"><span>2</span> Pick Shopping Style for <span id="currentRoleName" style="background:var(--accent2)">Role</span></div>
+    <div class="style-grid" id="styleGrid"></div>
+    <div style="margin-top:1rem;text-align:right">
+      <button class="btn" onclick="confirmStyle()">Confirm →</button>
+    </div>
+  </div>
+
+  <!-- Phase 3: Battle -->
+  <div class="battle-section" id="phase3">
+    <div class="phase phase-title" style="background:var(--accent1);color:#fff;padding:.8rem 1.2rem">
+      ⚔️ The Cart Battle
+    </div>
+    <div class="vs-badge">⚔️ VS ⚔️</div>
+    <div class="battle-grid" id="battleGrid"></div>
+    <div id="voteSection" style="display:none">
+      <div style="text-align:center;margin-bottom:1rem">
+        <p style="color:var(--muted);font-size:.88rem">India has voted. Click your winner!</p>
+      </div>
+    </div>
+    <div id="resultBox" style="display:none"></div>
+    <div style="text-align:center;margin-top:1rem">
+      <button class="btn secondary" onclick="resetAll()">🔄 New Battle</button>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:1.5rem">
+    <button class="btn" id="startBattleBtn" style="display:none" onclick="startBattle()">⚔️ Start Cart Battle!</button>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps-section">
+    <div class="steps-title">How It Works</div>
+    <div id="stepsList"></div>
+  </div>
+
+</div>
+
+<script>
+const roles = [
+  { name:'Mom', emoji:'👩', styles:['Practical','Smart','Budget','Trendy'] },
+  { name:'Dad', emoji:'👨', styles:['Practical','Premium','Budget','Safe'] },
+  { name:'Kid', emoji:'🧒', styles:['Crazy','Dream','Trendy','Impulse'] },
+  { name:'Sibling', emoji:'👦', styles:['Trendy','Premium','Crazy','Smart'] },
+  { name:'Grandparent', emoji:'🧓', styles:['Budget','Practical','Safe','Classic'] },
+  { name:'Friend', emoji:'🤝', styles:['Trendy','Crazy','Premium','Impulse'] },
+];
+const cartItems = {
+  Practical:['Pressure Cooker','Vacuum Cleaner','First Aid Kit','Storage Boxes'],
+  Smart:['Air Fryer','Smart Speaker','Running Shoes','Laptop Stand'],
+  Budget:['Bulk Grocery','Basic Phone','Table Fan','Water Bottle'],
+  Trendy:['Sneakers','Bluetooth Earbuds','Skincare Set','Graphic Tee'],
+  Crazy:['Giant Teddy Bear','Drone','Unicycle','Neon Lamp'],
+  Dream:['Gaming Console','iPad','Electric Scooter','VR Headset'],
+  Premium:['Coffee Machine','DSLR Camera','Silk Saree','Smart Watch'],
+  Safe:['Helmet','Fire Extinguisher','Medical Kit','Power Bank'],
+  Classic:['Sewing Kit','Pickle Jar Set','Oil Lamp','Almanac'],
+  Impulse:['Mystery Box','Random Gadget','Flash Sale Pick','Whatever's On Top'],
+};
+
+const steps = [
+  'Entry Hook – "Every family has one smart shopper, one impulse buyer, and one deal detective. Who wins?"',
+  'Choose Family Roles – Select: Mom, Dad, Kid, Sibling, Grandparent, Friend.',
+  'Quick Personality Pick – Each role picks: Practical / Premium / Crazy / Budget / Trendy.',
+  'Auto Cart Creation – System creates fun carts: "Dad's Safe Cart", "Kid's Dream Cart".',
+  'Battle Round – Two carts appear side-by-side. Vote: "Which cart deserves BBD priority?"',
+  'Live Result – "India says Mom Cart wins 61%!"',
+  'Share Battle – User shares: "My family cart war is live. Vote now!"',
+  'Replay Loop – Create new battles with friends, office, or hostel groups.',
+];
+
+let selected = [];
+let styleQueue = [];
+let styleIndex = 0;
+let roleStyles = {};
+
+function buildRoles(){
+  const rg = document.getElementById('roleGrid');
+  roles.forEach((r,i)=>{
+    const d = document.createElement('div');
+    d.className = 'role-card';
+    d.id = `rc-${i}`;
+    d.innerHTML = `<div class="role-emoji">${r.emoji}</div><div class="role-name">${r.name}</div>`;
+    d.onclick = () => toggleRole(i, d);
+    rg.appendChild(d);
+  });
+}
+
+function toggleRole(i, el){
+  if(el.classList.contains('selected')){
+    el.classList.remove('selected');
+    selected = selected.filter(x=>x!==i);
+  } else if(selected.length < 2){
+    el.classList.add('selected');
+    selected.push(i);
+  }
+  document.getElementById('startBattleBtn').style.display = selected.length === 2 ? 'inline-block' : 'none';
+}
+
+function startBattle(){
+  styleQueue = [...selected];
+  styleIndex = 0;
+  roleStyles = {};
+  document.getElementById('phase3').style.display = 'none';
+  document.getElementById('phase3').classList.remove('active');
+  askStyle();
+}
+
+function askStyle(){
+  if(styleIndex >= styleQueue.length){ buildBattle(); return; }
+  const role = roles[styleQueue[styleIndex]];
+  document.getElementById('phase2').style.display = 'block';
+  document.getElementById('currentRoleName').textContent = `${role.emoji} ${role.name}`;
+  const sg = document.getElementById('styleGrid');
+  sg.innerHTML = '';
+  role.styles.forEach(s=>{
+    const b = document.createElement('button');
+    b.className = 'style-btn';
+    b.textContent = s;
+    b.onclick = () => { sg.querySelectorAll('.style-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); };
+    sg.appendChild(b);
+  });
+}
+
+function confirmStyle(){
+  const sel = document.querySelector('.style-btn.selected');
+  if(!sel){ alert('Pick a style first!'); return; }
+  const ri = styleQueue[styleIndex];
+  roleStyles[ri] = sel.textContent;
+  styleIndex++;
+  if(styleIndex < styleQueue.length){ askStyle(); }
+  else { document.getElementById('phase2').style.display = 'none'; buildBattle(); }
+}
+
+function buildBattle(){
+  const bg = document.getElementById('battleGrid');
+  bg.innerHTML = '';
+  document.getElementById('resultBox').style.display = 'none';
+  document.getElementById('resultBox').innerHTML = '';
+  document.getElementById('voteSection').style.display = 'block';
+  document.getElementById('phase3').style.display = 'block';
+  document.getElementById('phase3').classList.add('active');
+
+  selected.forEach((ri,idx)=>{
+    const role = roles[ri];
+    const style = roleStyles[ri] || role.styles[0];
+    const items = cartItems[style] || ['Item 1','Item 2','Item 3','Item 4'];
+    const card = document.createElement('div');
+    card.className = 'cart-card';
+    card.id = `cc-${idx}`;
+    card.innerHTML = `
+      <div class="cart-emoji">${role.emoji}</div>
+      <div class="cart-name">${role.name}'s ${style} Cart</div>
+      <div class="cart-style">${style} Shopper</div>
+      <div class="cart-items">${items.map(it=>`<span class="item-tag">${it}</span>`).join('')}</div>
+      <div style="margin-top:1rem">
+        <div class="vote-bar"><div class="vote-fill" id="vf-${idx}" style="width:0%"></div></div>
+        <div class="vote-label"><span id="vl-${idx}">0%</span><span>Votes</span></div>
+      </div>
+    `;
+    card.onclick = () => vote(idx);
+    bg.appendChild(card);
+  });
+}
+
+let voted = false;
+function vote(winnerIdx){
+  if(voted) return;
+  voted = true;
+  const pct = Math.floor(55 + Math.random()*20);
+  const other = 100 - pct;
+  [winnerIdx, 1-winnerIdx].forEach((i,j)=>{
+    const p = j===0 ? pct : other;
+    document.getElementById(`vf-${i}`).style.width = p+'%';
+    document.getElementById(`vl-${i}`).textContent = p+'%';
+  });
+  const wr = roles[selected[winnerIdx]];
+  const style = roleStyles[selected[winnerIdx]] || '';
+  const rb = document.getElementById('resultBox');
+  rb.style.display = 'block';
+  rb.innerHTML = `
+    <div class="result-box">
+      <h2>${wr.emoji} ${wr.name}'s Cart Wins! 🎉</h2>
+      <p>India says <strong>${pct}%</strong> prefer the ${style} cart.</p>
+      <button class="btn" onclick="copyShare('${wr.name} Cart wins ${pct}%! Who wins in YOUR family? #BBDCartBattle')">📤 Share Result</button>
+    </div>
+  `;
+  launchConfetti();
+}
+
+function copyShare(msg){ navigator.clipboard?.writeText(msg); alert('Share text copied! 📋\n\n'+msg); }
+
+function resetAll(){
+  voted = false;
+  selected = [];
+  roleStyles = {};
+  document.querySelectorAll('.role-card').forEach(r=>r.classList.remove('selected'));
+  document.getElementById('startBattleBtn').style.display = 'none';
+  document.getElementById('phase3').style.display = 'none';
+}
+
+// Confetti
+function launchConfetti(){
+  const canvas = document.getElementById('confetti');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  const pieces = Array.from({length:80},()=>({
+    x: Math.random()*canvas.width, y: -20,
+    w: 8+Math.random()*10, h: 5+Math.random()*8,
+    r: Math.random()*Math.PI*2, dr: (Math.random()-.5)*.2,
+    vy: 3+Math.random()*4, vx: (Math.random()-.5)*3,
+    color: ['#ff4e00','#ff9500','#2563eb','#8b5cf6','#00cc88'][Math.floor(Math.random()*5)],
+    life: 1,
+  }));
+  let frame;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let alive = false;
+    pieces.forEach(p=>{
+      if(p.life<=0) return; alive = true;
+      p.x+=p.vx; p.y+=p.vy; p.r+=p.dr; p.life-=0.008;
+      ctx.save(); ctx.globalAlpha=p.life; ctx.fillStyle=p.color;
+      ctx.translate(p.x,p.y); ctx.rotate(p.r);
+      ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    });
+    if(alive) frame=requestAnimationFrame(draw); else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  cancelAnimationFrame(frame); draw();
+}
+
+// Steps
+const sl = document.getElementById('stepsList');
+steps.forEach((s,i)=>{
+  sl.innerHTML+=`<div class="step-item"><div class="sn">${i+1}</div><div class="st">${s}</div></div>`;
+});
+
+buildRoles();
+</script>
+</body>
+</html>
