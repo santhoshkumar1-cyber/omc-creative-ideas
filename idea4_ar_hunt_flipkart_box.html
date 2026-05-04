@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Find The Hidden Flipkart Box – AR Hunt</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@700;900&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #050510;
+    --card: #0e0e20;
+    --surface: #161630;
+    --fk-blue: #2874f0;
+    --fk-yellow: #ffce00;
+    --accent: #00e5ff;
+    --success: #00ff88;
+    --text: #e8e8ff;
+    --muted: #5050a0;
+    --border: rgba(0,229,255,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  body::before {
+    content:''; position:fixed; inset:0;
+    background: radial-gradient(ellipse at 50% 100%, rgba(40,116,240,0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 2rem 1rem; position: relative; z-index: 1; }
+
+  header { text-align: center; margin-bottom: 2rem; }
+  .tag {
+    font-family: 'Exo 2', sans-serif; font-size: .65rem; letter-spacing: .2em;
+    color: var(--accent); border: 1px solid var(--accent); border-radius: 99px;
+    padding: .3rem 1rem; display: inline-block; text-transform: uppercase; margin-bottom: .9rem;
+  }
+  h1 { font-family: 'Exo 2', sans-serif; font-size: clamp(1.6rem,4.5vw,2.6rem); font-weight: 900; line-height: 1.1; }
+  h1 em { font-style: normal; color: var(--fk-yellow); }
+  header p { color: var(--muted); margin-top: .6rem; font-size: .9rem; }
+
+  /* Camera viewfinder */
+  .viewfinder {
+    position: relative; border-radius: 20px; overflow: hidden;
+    border: 2px solid var(--border); background: var(--card);
+    aspect-ratio: 4/3; margin-bottom: 1.5rem; cursor: crosshair;
+  }
+
+  /* Animated scanlines */
+  .scanline {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,229,255,0.02) 2px, rgba(0,229,255,0.02) 4px);
+  }
+
+  /* Corner brackets */
+  .corner { position: absolute; width: 28px; height: 28px; border-color: var(--accent); border-style: solid; }
+  .corner.tl { top: 14px; left: 14px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 14px; right: 14px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 14px; left: 14px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 14px; right: 14px; border-width: 0 2px 2px 0; }
+
+  /* AR room bg */
+  .room-bg {
+    position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 2rem; overflow: hidden;
+  }
+  .room-bg .floor { position: absolute; bottom: 0; left: 0; right: 0; height: 35%; background: linear-gradient(180deg, transparent, rgba(40,116,240,0.06)); border-top: 1px solid rgba(0,229,255,0.08); }
+  .room-bg .wall-line { position: absolute; top: 40%; left: 50%; height: 60%; width: 1px; background: rgba(0,229,255,0.06); transform: translateX(-50%); }
+
+  /* Floating boxes */
+  .ar-box {
+    position: absolute; cursor: pointer; user-select: none;
+    transition: transform .2s;
+    animation: float 3s ease-in-out infinite;
+  }
+  .ar-box:hover { transform: scale(1.2) !important; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .ar-box .box-inner {
+    width: 54px; height: 54px; background: linear-gradient(135deg,var(--fk-blue),#1a5ab8);
+    border-radius: 10px; border: 2px solid var(--fk-yellow); display: flex;
+    align-items: center; justify-content: center; font-size: 1.6rem;
+    box-shadow: 0 0 20px rgba(40,116,240,0.5), 0 0 6px rgba(255,206,0,0.4);
+    position: relative;
+  }
+  .ar-box .pulse-ring {
+    position: absolute; inset: -6px; border-radius: 14px;
+    border: 2px solid var(--accent); opacity: .6;
+    animation: pulse 1.5s ease-out infinite;
+  }
+  @keyframes pulse { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(1.3);opacity:0} }
+
+  .ar-box.hard { animation: floatMove 4s linear infinite; }
+  @keyframes floatMove { 0%{transform:translateX(0) translateY(0)} 25%{transform:translateX(30px) translateY(-15px)} 50%{transform:translateX(-20px) translateY(-10px)} 75%{transform:translateX(20px) translateY(5px)} 100%{transform:translateX(0) translateY(0)} }
+
+  /* Capture flash */
+  .flash {
+    position: absolute; inset: 0; background: white; opacity: 0; border-radius: 18px;
+    pointer-events: none; transition: opacity .1s;
+  }
+  .flash.show { opacity: .7; }
+
+  /* HUD overlay */
+  .hud-top {
+    position: absolute; top: 1rem; left: 50%; transform: translateX(-50%);
+    background: rgba(5,5,16,0.8); border: 1px solid var(--border); border-radius: 99px;
+    padding: .4rem 1rem; font-family: 'Exo 2', sans-serif; font-size: .78rem; color: var(--accent);
+    white-space: nowrap;
+  }
+  .hud-scan {
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scan 2.5s linear infinite;
+  }
+  @keyframes scan { 0%{top:0} 100%{top:100%} }
+
+  /* Collection meter */
+  .meter-section {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 1.2rem 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  }
+  .meter-label { font-family: 'Exo 2', sans-serif; font-size: .85rem; color: var(--accent); font-weight: 700; }
+  .boxes-collected { display: flex; gap: .5rem; }
+  .bc { width: 36px; height: 36px; border-radius: 8px; background: var(--surface); border: 1.5px dashed var(--muted); display: flex; align-items: center; justify-content: center; font-size: 1rem; transition: all .4s; }
+  .bc.found { background: linear-gradient(135deg,var(--fk-blue),#1a5ab8); border-color: var(--fk-yellow); box-shadow: 0 0 12px rgba(40,116,240,0.4); animation: pop .4s; }
+  @keyframes pop { 0%{transform:scale(0.5)} 70%{transform:scale(1.2)} 100%{transform:scale(1)} }
+  .diff-badge {
+    margin-left: auto; font-family: 'Exo 2', sans-serif; font-size: .72rem;
+    background: rgba(0,229,255,0.1); border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 99px; padding: .3rem .8rem;
+  }
+
+  /* Clue panel */
+  .clue-panel {
+    background: var(--surface); border: 1px solid rgba(255,206,0,0.2); border-radius: 14px;
+    padding: 1rem 1.3rem; margin-bottom: 1.5rem; display: none;
+    animation: slideDown .4s;
+  }
+  .clue-panel.show { display: block; }
+  @keyframes slideDown { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+  .clue-header { font-family: 'Exo 2', sans-serif; font-size: .8rem; color: var(--fk-yellow); margin-bottom: .4rem; }
+  .clue-text { font-size: .9rem; color: var(--text); }
+
+  /* Final giant box */
+  .giant-reveal {
+    display: none; text-align: center; background: var(--card); border: 2px solid var(--fk-yellow);
+    border-radius: 24px; padding: 2.5rem; margin-bottom: 1.5rem;
+    animation: popIn .6s;
+  }
+  .giant-reveal.show { display: block; }
+  @keyframes popIn { from{transform:scale(0.7);opacity:0} to{transform:scale(1);opacity:1} }
+  .giant-box-icon { font-size: 5rem; animation: giantPulse 1s ease-in-out infinite; }
+  @keyframes giantPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
+  .giant-reveal h2 { font-family: 'Exo 2', sans-serif; font-size: 1.8rem; font-weight: 900; color: var(--fk-yellow); margin: .8rem 0 .4rem; }
+  .giant-reveal p { color: var(--muted); font-size: .9rem; }
+
+  .btn {
+    background: linear-gradient(90deg, var(--fk-blue), #1a5ab8);
+    color: #fff; font-family: 'Exo 2', sans-serif; font-weight: 700; font-size: .9rem;
+    padding: .8rem 2rem; border-radius: 99px; border: none; cursor: pointer;
+    transition: transform .2s; margin: .3rem; box-shadow: 0 4px 20px rgba(40,116,240,0.3);
+  }
+  .btn:hover { transform: scale(1.04); }
+  .btn.yellow { background: linear-gradient(90deg, var(--fk-yellow), #ffae00); color: #000; }
+
+  .steps-section { margin-top: 2.5rem; }
+  .steps-title { font-family: 'Exo 2', sans-serif; font-size: .72rem; color: var(--accent); letter-spacing: .12em; text-transform: uppercase; margin-bottom: .8rem; }
+  .step-item { display: flex; gap: .8rem; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: .8rem 1rem; margin-bottom: .5rem; }
+  .sn { background: var(--fk-blue); color: #fff; font-weight: 800; font-size: .72rem; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .st { font-size: .84rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="tag">📸 AR Hunt</div>
+    <h1>Find The Hidden <em>Flipkart Box</em></h1>
+    <p>Scan your room. Tap the hidden boxes before they disappear!</p>
+  </header>
+
+  <!-- Collection Meter -->
+  <div class="meter-section">
+    <span class="meter-label">📦 Boxes Found</span>
+    <div class="boxes-collected" id="bcRow">
+      <div class="bc" id="bc0">📦</div>
+      <div class="bc" id="bc1">📦</div>
+      <div class="bc" id="bc2">📦</div>
+      <div class="bc" id="bc3">📦</div>
+      <div class="bc" id="bc4">📦</div>
+    </div>
+    <span class="diff-badge" id="diffBadge">Difficulty: Easy</span>
+    <span id="counterText" style="font-family:'Exo 2',sans-serif;font-size:.8rem;color:var(--muted)">0/5 Found</span>
+  </div>
+
+  <!-- Clue Panel -->
+  <div class="clue-panel" id="cluePanel">
+    <div class="clue-header">📡 Signal Received</div>
+    <div class="clue-text" id="clueText"></div>
+  </div>
+
+  <!-- AR Viewfinder -->
+  <div class="viewfinder" id="vf" onclick="handleVFClick(event)">
+    <div class="room-bg">
+      <div class="floor"></div>
+      <div class="wall-line"></div>
+    </div>
+    <div class="scanline"></div>
+    <div class="hud-scan"></div>
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div class="hud-top" id="hudText">📡 Scanning room… Move camera</div>
+    <div class="flash" id="flashEl"></div>
+    <!-- AR boxes injected here -->
+  </div>
+
+  <!-- Giant Reveal -->
+  <div class="giant-reveal" id="giantReveal">
+    <div class="giant-box-icon">🎁</div>
+    <h2>The Billion Box Is Yours!</h2>
+    <p>You found all 5 hidden boxes. Your BBD surprise awaits on sale day!</p>
+    <div style="margin-top:1.2rem">
+      <button class="btn yellow" onclick="shareResult()">📤 Share Your Hunt</button>
+      <button class="btn" onclick="resetHunt()">🔄 Hunt Again</button>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-bottom:2rem">
+    <button class="btn" onclick="spawnBox()">📦 Spawn Next Box</button>
+    <button class="btn" style="background:var(--surface);box-shadow:none;border:1px solid var(--border)" onclick="resetHunt()">🔄 Reset</button>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps-section">
+    <div class="steps-title">How It Works</div>
+    <div id="stepsList"></div>
+  </div>
+
+</div>
+
+<script>
+const clues = [
+  { sound:'🔊 Beep!', hint:'📱 Category: Mobile & Electronics', emoji:'📱' },
+  { sound:'🔔 Ding!', hint:'👗 Category: Fashion & Clothing', emoji:'👗' },
+  { sound:'💨 Whoosh!', hint:'🛋️ Category: Home & Furniture', emoji:'🛋️' },
+  { sound:'✨ Sparkle!', hint:'💄 Category: Beauty & Skincare', emoji:'💄' },
+  { sound:'🎵 Chime!', hint:'🍎 Category: Grocery & Food', emoji:'🍎' },
+];
+const diffs = ['Easy','Medium','Hard','Very Hard','Extreme'];
+const steps = [
+  'Entry Hook – "Your room is hiding a Big Billion Box."',
+  'Camera Opens – User scans their room using mobile camera.',
+  'Hidden Box Appears – Flipkart boxes appear in AR under table, near wall, behind objects.',
+  'Tap to Capture – User taps box before it disappears.',
+  'Box Gives Clue – Each box reveals sound / category hint / puzzle piece.',
+  'Difficulty Increases – First box easy, next boxes move, hide, or appear only when user tilts camera.',
+  'Collection Meter – "3/5 boxes found."',
+  'Final Giant Box – After 5 boxes, giant AR box appears and opens dramatically.',
+];
+
+let found = 0;
+let activeBox = null;
+let disappearTimer = null;
+
+function spawnBox(){
+  if(found >= 5) return;
+  if(activeBox) return;
+
+  const vf = document.getElementById('vf');
+  const clue = clues[found];
+  const diff = found; // 0=easy, 4=extreme
+
+  // Random position inside viewfinder (avoid edges)
+  const maxX = vf.clientWidth - 80;
+  const maxY = vf.clientHeight - 100;
+  const x = 30 + Math.random() * maxX;
+  const y = 40 + Math.random() * (maxY - 60);
+
+  const box = document.createElement('div');
+  box.className = 'ar-box' + (diff >= 3 ? ' hard' : '');
+  box.id = 'arbox';
+  box.style.left = x + 'px';
+  box.style.top = y + 'px';
+  box.innerHTML = `<div class="box-inner">📦<div class="pulse-ring"></div></div>`;
+  box.onclick = (e) => { e.stopPropagation(); captureBox(clue); };
+  vf.appendChild(box);
+  activeBox = box;
+
+  document.getElementById('hudText').textContent = `📡 Box ${found+1} detected! Tap it!`;
+  document.getElementById('diffBadge').textContent = `Difficulty: ${diffs[diff]}`;
+
+  // Disappear timer (gets faster with difficulty)
+  const timeout = Math.max(3000, 9000 - diff * 1500);
+  clearTimeout(disappearTimer);
+  disappearTimer = setTimeout(()=>{
+    if(activeBox){ activeBox.remove(); activeBox = null; document.getElementById('hudText').textContent = `😱 Box disappeared! Spawn another.`; }
+  }, timeout);
+}
+
+function captureBox(clue){
+  clearTimeout(disappearTimer);
+  if(!activeBox) return;
+  activeBox.remove(); activeBox = null;
+
+  // Flash
+  const fl = document.getElementById('flashEl');
+  fl.classList.add('show');
+  setTimeout(()=>fl.classList.remove('show'), 200);
+
+  // Mark found
+  const bc = document.getElementById(`bc${found}`);
+  bc.classList.add('found');
+  bc.textContent = clue.emoji;
+  found++;
+
+  document.getElementById('counterText').textContent = `${found}/5 Found`;
+  document.getElementById('hudText').textContent = `✅ Box ${found} captured! +1 Clue unlocked`;
+
+  // Show clue
+  document.getElementById('clueText').textContent = `${clue.sound} — ${clue.hint}`;
+  document.getElementById('cluePanel').classList.add('show');
+
+  if(found >= 5){
+    setTimeout(()=>{
+      document.getElementById('hudText').textContent = `🎁 ALL 5 FOUND! Giant Box incoming!`;
+      document.getElementById('giantReveal').classList.add('show');
+    }, 800);
+  } else {
+    setTimeout(()=>{
+      document.getElementById('hudText').textContent = `📡 Scanning for box ${found+1}…`;
+      spawnBox();
+    }, 1500);
+  }
+}
+
+function handleVFClick(e){ /* just for UX depth */ }
+
+function shareResult(){
+  const msg = `I found all 5 hidden Flipkart boxes in my room! 🎁📦 Can you beat me? #BigBillionDays #ARHunt`;
+  navigator.clipboard?.writeText(msg);
+  alert('Share text copied!\n\n' + msg);
+}
+
+function resetHunt(){
+  found = 0;
+  if(activeBox){ activeBox.remove(); activeBox = null; }
+  clearTimeout(disappearTimer);
+  for(let i=0;i<5;i++){ const bc=document.getElementById(`bc${i}`); bc.classList.remove('found'); bc.textContent='📦'; }
+  document.getElementById('counterText').textContent = '0/5 Found';
+  document.getElementById('hudText').textContent = '📡 Scanning room… Move camera';
+  document.getElementById('cluePanel').classList.remove('show');
+  document.getElementById('giantReveal').classList.remove('show');
+  document.getElementById('diffBadge').textContent = 'Difficulty: Easy';
+}
+
+// Auto-spawn first box
+setTimeout(spawnBox, 1000);
+
+const sl = document.getElementById('stepsList');
+steps.forEach((s,i)=>{ sl.innerHTML+=`<div class="step-item"><div class="sn">${i+1}</div><div class="st">${s}</div></div>`; });
+</script>
+</body>
+</html>
